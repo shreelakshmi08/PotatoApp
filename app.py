@@ -1,68 +1,37 @@
-import os
 import streamlit as st
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Input
 from PIL import Image
+import tflite_runtime.interpreter as tflite
 
-# =========================
-# MODEL ARCHITECTURE (MUST MATCH TRAINING)
-# =========================
-model = Sequential([
-    Input(shape=(128,128,3)),
+# Load model
+interpreter = tflite.Interpreter(model_path="model.tflite")
+interpreter.allocate_tensors()
 
-    Conv2D(32, (3,3), activation='relu'),
-    MaxPooling2D(2,2),
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
-    Conv2D(64, (3,3), activation='relu'),
-    MaxPooling2D(2,2),
-
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dense(3, activation='softmax')
-])
-
-# =========================
-# LOAD WEIGHTS
-# =========================
-model.load_weights("potato.weights.h5")
-
-# Class labels (MUST match training order)
 class_names = ['Early_Blight', 'Healthy', 'Late_Blight']
-
-# =========================
-# STREAMLIT UI
-# =========================
-st.set_page_config(page_title="Potato Disease Detection")
 
 st.title("🥔 Potato Disease Detection")
 
 file = st.file_uploader("Upload Leaf Image", type=["jpg","png","jpeg"])
 
 if file is not None:
-    # Load image
     img = Image.open(file).convert("RGB")
     img = img.resize((128,128))
 
     st.image(img, caption="Uploaded Image", width=300)
 
-    # Preprocess
-    img_array = np.array(img) / 255.0
+    img_array = np.array(img, dtype=np.float32) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
-    # Prediction
-    prediction = model.predict(img_array)
+    interpreter.set_tensor(input_details[0]['index'], img_array)
+    interpreter.invoke()
+
+    prediction = interpreter.get_tensor(output_details[0]['index'])
+
     predicted_class = class_names[np.argmax(prediction)]
     confidence = np.max(prediction) * 100
 
-    # Output
     st.success(f"Prediction: {predicted_class}")
     st.info(f"Confidence: {confidence:.2f}%")
-
-# =========================
-# REQUIRED FOR RENDER
-# =========================
-if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 8501))
-    os.system(f"streamlit run app.py --server.port {PORT} --server.address 0.0.0.0")
