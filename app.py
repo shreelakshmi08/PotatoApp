@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import numpy as np
 import tensorflow as tf
@@ -6,7 +7,7 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Input
 from PIL import Image
 
 # =========================
-# MODEL (MUST MATCH TRAINING)
+# MODEL ARCHITECTURE (MUST MATCH TRAINING)
 # =========================
 model = Sequential([
     Input(shape=(128,128,3)),
@@ -22,31 +23,46 @@ model = Sequential([
     Dense(3, activation='softmax')
 ])
 
-# Load weights
+# =========================
+# LOAD WEIGHTS
+# =========================
 model.load_weights("potato.weights.h5")
 
-# Class labels
-class_names = ['Early_Blight', 'Healthy', 'Late_Blight']   
+# Class labels (MUST match training order)
+class_names = ['Early_Blight', 'Healthy', 'Late_Blight']
 
 # =========================
 # STREAMLIT UI
 # =========================
+st.set_page_config(page_title="Potato Disease Detection")
+
 st.title("🥔 Potato Disease Detection")
 
 file = st.file_uploader("Upload Leaf Image", type=["jpg","png","jpeg"])
 
 if file is not None:
+    # Load image
     img = Image.open(file).convert("RGB")
     img = img.resize((128,128))
 
-    st.image(img, caption="Uploaded Image", width=150)
+    st.image(img, caption="Uploaded Image", width=300)
 
+    # Preprocess
     img_array = np.array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
+    # Prediction
     prediction = model.predict(img_array)
-
     predicted_class = class_names[np.argmax(prediction)]
     confidence = np.max(prediction) * 100
 
+    # Output
     st.success(f"Prediction: {predicted_class}")
+    st.info(f"Confidence: {confidence:.2f}%")
+
+# =========================
+# REQUIRED FOR RENDER
+# =========================
+if __name__ == "__main__":
+    PORT = int(os.environ.get("PORT", 8501))
+    os.system(f"streamlit run app.py --server.port {PORT} --server.address 0.0.0.0")
